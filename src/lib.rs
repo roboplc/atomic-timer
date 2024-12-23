@@ -23,7 +23,7 @@ impl AtomicTimer {
     fn construct(duration: i64, elapsed: i64, monotonic_fn: fn() -> i64) -> Self {
         AtomicTimer {
             duration,
-            start: AtomicI64::new(monotonic_fn().saturating_sub(elapsed)),
+            start: AtomicI64::new(monotonic_fn() - elapsed),
             monotonic_fn,
         }
     }
@@ -46,6 +46,11 @@ impl AtomicTimer {
     #[inline]
     pub fn reset(&self) {
         self.start.store((self.monotonic_fn)(), Ordering::SeqCst);
+    }
+    /// Focibly expire the timer
+    pub fn expire_now(&self) {
+        self.start
+            .store((self.monotonic_fn)() - self.duration, Ordering::SeqCst);
     }
     /// Reset the timer if it has expired, return true if reset
     #[inline]
@@ -72,7 +77,7 @@ impl AtomicTimer {
     pub fn remaining(&self) -> Duration {
         let elapsed = self.elapsed_ns();
         if elapsed >= self.duration {
-            Duration::default()
+            Duration::ZERO
         } else {
             Duration::from_nanos((self.duration - elapsed).try_into().unwrap_or_default())
         }
@@ -126,12 +131,32 @@ mod test {
         time::Duration,
     };
 
+    pub(crate) fn in_time_window(a: Duration, b: Duration, window: Duration) -> bool {
+        let diff = window / 2;
+        let min = b - diff;
+        let max = b + diff;
+        a >= min && a <= max
+    }
+
     #[test]
     fn test_reset() {
         let timer = AtomicTimer::new(Duration::from_secs(5));
         thread::sleep(Duration::from_secs(1));
         timer.reset();
         assert!(timer.elapsed() < Duration::from_millis(100));
+    }
+
+    #[test]
+    fn test_expire_now() {
+        let timer = AtomicTimer::new(Duration::from_secs(5));
+        assert!(!timer.expired());
+        assert!(in_time_window(
+            timer.remaining(),
+            Duration::from_secs(5),
+            Duration::from_millis(100)
+        ));
+        timer.expire_now();
+        assert!(timer.expired());
     }
 
     #[test]
@@ -173,15 +198,9 @@ mod test {
 #[cfg(feature = "serde")]
 #[cfg(test)]
 mod test_serialization {
+    use super::test::in_time_window;
     use super::AtomicTimer;
     use std::{thread, time::Duration};
-
-    fn in_time_window(a: Duration, b: Duration, window: Duration) -> bool {
-        let diff = window / 2;
-        let min = b - diff;
-        let max = b + diff;
-        a >= min && a <= max
-    }
 
     #[test]
     fn test_serialize_deserialize() {
