@@ -9,7 +9,7 @@ use bma_ts::Monotonic;
 
 /// Atomic timer
 pub struct AtomicTimer {
-    duration: i64,
+    duration: AtomicI64,
     start: AtomicI64,
     monotonic_fn: fn() -> i64,
 }
@@ -22,7 +22,7 @@ impl AtomicTimer {
     #[allow(dead_code)]
     fn construct(duration: i64, elapsed: i64, monotonic_fn: fn() -> i64) -> Self {
         AtomicTimer {
-            duration,
+            duration: AtomicI64::new(duration),
             start: AtomicI64::new(monotonic_fn() - elapsed),
             monotonic_fn,
         }
@@ -34,13 +34,31 @@ impl AtomicTimer {
     /// Panics if the duration is too large (in nanos greater than `i64::MAX`)
     pub fn new(duration: Duration) -> Self {
         AtomicTimer {
-            duration: duration
-                .as_nanos()
-                .try_into()
-                .expect("Duration is too large"),
+            duration: AtomicI64::new(
+                duration
+                    .as_nanos()
+                    .try_into()
+                    .expect("Duration is too large"),
+            ),
             start: AtomicI64::new(monotonic_ns()),
             monotonic_fn: monotonic_ns,
         }
+    }
+    /// Get the duration of the timer
+    pub fn duration(&self) -> Duration {
+        Duration::from_nanos(
+            self.duration
+                .load(Ordering::SeqCst)
+                .try_into()
+                .unwrap_or_default(),
+        )
+    }
+    /// Change the duration of the timer
+    pub fn set_duration(&self, duration: Duration) {
+        self.duration.store(
+            duration.as_nanos().try_into().unwrap_or_default(),
+            Ordering::SeqCst,
+        );
     }
     /// Reset the timer
     #[inline]
@@ -49,8 +67,10 @@ impl AtomicTimer {
     }
     /// Focibly expire the timer
     pub fn expire_now(&self) {
-        self.start
-            .store((self.monotonic_fn)() - self.duration, Ordering::SeqCst);
+        self.start.store(
+            (self.monotonic_fn)() - self.duration.load(Ordering::SeqCst),
+            Ordering::SeqCst,
+        );
     }
     /// Reset the timer if it has expired, return true if reset
     #[inline]
@@ -58,7 +78,7 @@ impl AtomicTimer {
         let now = (self.monotonic_fn)();
         self.start
             .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |start| {
-                (now.saturating_sub(start) >= self.duration).then_some(now)
+                (now.saturating_sub(start) >= self.duration.load(Ordering::SeqCst)).then_some(now)
             })
             .is_ok()
     }
@@ -76,10 +96,14 @@ impl AtomicTimer {
     #[inline]
     pub fn remaining(&self) -> Duration {
         let elapsed = self.elapsed_ns();
-        if elapsed >= self.duration {
+        if elapsed >= self.duration.load(Ordering::SeqCst) {
             Duration::ZERO
         } else {
-            Duration::from_nanos((self.duration - elapsed).try_into().unwrap_or_default())
+            Duration::from_nanos(
+                (self.duration.load(Ordering::SeqCst) - elapsed)
+                    .try_into()
+                    .unwrap_or_default(),
+            )
         }
     }
     fn elapsed_ns(&self) -> i64 {
@@ -88,7 +112,7 @@ impl AtomicTimer {
     /// Check if the timer has expired
     #[inline]
     pub fn expired(&self) -> bool {
-        self.elapsed_ns() >= self.duration
+        self.elapsed_ns() >= self.duration.load(Ordering::SeqCst)
     }
 }
 
@@ -96,6 +120,7 @@ impl AtomicTimer {
 mod ser {
     use super::{monotonic_ns, AtomicTimer};
     use serde::{ser::SerializeTuple as _, Deserialize, Deserializer, Serialize, Serializer};
+    use std::sync::atomic::Ordering;
 
     impl Serialize for AtomicTimer {
         fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -104,7 +129,7 @@ mod ser {
         {
             // serialize duration and elapsed into a tuple
             let mut t = serializer.serialize_tuple(2)?;
-            t.serialize_element(&self.duration)?;
+            t.serialize_element(&self.duration.load(Ordering::SeqCst))?;
             t.serialize_element(&self.elapsed_ns())?;
             t.end()
         }
@@ -225,7 +250,7 @@ mod test_serialization {
         let serialized = serde_json::to_string(&timer).unwrap();
         let deserialized: AtomicTimer = serde_json::from_str(&serialized).unwrap();
         let deserialized_rewinded = AtomicTimer::construct(
-            deserialized.duration,
+            deserialized.duration().as_nanos().try_into().unwrap(),
             deserialized.elapsed_ns(),
             monotonic_ns_forwarded,
         );
@@ -246,7 +271,7 @@ mod test_serialization {
         let serialized = serde_json::to_string(&timer).unwrap();
         let deserialized: AtomicTimer = serde_json::from_str(&serialized).unwrap();
         let deserialized_rewinded = AtomicTimer::construct(
-            deserialized.duration,
+            deserialized.duration().as_nanos().try_into().unwrap(),
             deserialized.elapsed_ns(),
             monotonic_ns_forwarded,
         );
@@ -267,7 +292,7 @@ mod test_serialization {
         let serialized = serde_json::to_string(&timer).unwrap();
         let deserialized: AtomicTimer = serde_json::from_str(&serialized).unwrap();
         let deserialized_rewinded = AtomicTimer::construct(
-            deserialized.duration,
+            deserialized.duration().as_nanos().try_into().unwrap(),
             deserialized.elapsed_ns(),
             monotonic_ns_forwarded,
         );
