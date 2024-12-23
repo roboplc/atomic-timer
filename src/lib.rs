@@ -45,20 +45,21 @@ impl AtomicTimer {
         }
     }
     /// Get the duration of the timer
+    ///
+    /// # Panics
+    ///
+    /// Panics if the duration is negative
     pub fn duration(&self) -> Duration {
-        Duration::from_nanos(
-            self.duration
-                .load(Ordering::SeqCst)
-                .try_into()
-                .unwrap_or_default(),
-        )
+        Duration::from_nanos(self.duration.load(Ordering::SeqCst).try_into().unwrap())
     }
     /// Change the duration of the timer
+    ///
+    /// # Panics
+    ///
+    /// Panics if the duration in nanos is larger than `i64::MAX`
     pub fn set_duration(&self, duration: Duration) {
-        self.duration.store(
-            duration.as_nanos().try_into().unwrap_or_default(),
-            Ordering::SeqCst,
-        );
+        self.duration
+            .store(duration.as_nanos().try_into().unwrap(), Ordering::SeqCst);
     }
     /// Reset the timer
     #[inline]
@@ -83,6 +84,8 @@ impl AtomicTimer {
             .is_ok()
     }
     /// Get the elapsed time
+    ///
+    /// In case if negative elapsed, returns `Duration::ZERO`
     #[inline]
     pub fn elapsed(&self) -> Duration {
         Duration::from_nanos(
@@ -93,6 +96,8 @@ impl AtomicTimer {
         )
     }
     /// Get the remaining time
+    ///
+    /// In case if negative remaining, returns `Duration::ZERO`
     #[inline]
     pub fn remaining(&self) -> Duration {
         let elapsed = self.elapsed_ns();
