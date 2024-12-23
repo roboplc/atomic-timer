@@ -102,7 +102,7 @@ mod ser {
         where
             S: Serializer,
         {
-            // serialize duration and elapsed into map
+            // serialize duration and elapsed into a tuple
             let mut t = serializer.serialize_tuple(2)?;
             t.serialize_element(&self.duration)?;
             t.serialize_element(&self.elapsed_ns())?;
@@ -115,7 +115,7 @@ mod ser {
         where
             D: Deserializer<'de>,
         {
-            // deserialize duration and elapsed from map
+            // deserialize duration and elapsed from a tuple
             let (duration, elapsed) = <(i64, i64)>::deserialize(deserializer)?;
             Ok(AtomicTimer::construct(duration, elapsed, monotonic_ns))
         }
