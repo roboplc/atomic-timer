@@ -63,10 +63,6 @@ Atomic timer objects can be safely serialized and de-serialized (requires
 When a timer is de-serialized, it keeps its state (elapsed/remaining time),
 despite the system monotonic clock difference.
 
-## Limitations
-
-Currently does not works on WASM (can be added, write an issue if you really need it).
-
 ## MSRV
 
 1.68.0
