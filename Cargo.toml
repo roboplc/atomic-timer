@@ -1,6 +1,6 @@
 [package]
 name = "atomic-timer"
-version = "0.2.2"
+version = "0.3.0"
 edition = "2021"
 authors = ["Serhij S. <div@altertech.com>"]
 license = "MIT"
@@ -10,7 +10,7 @@ readme = "README.md"
 keywords = ["atomic", "timer"]
 
 [dependencies]
-bma-ts = "^0.1.15"
+bma-ts = "^0.2.2"
 serde = { version = "1.0", optional = true, features = ["derive"] }
 
 [dev-dependencies]
