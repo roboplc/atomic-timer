@@ -65,4 +65,4 @@ despite the system monotonic clock difference.
 
 ## MSRV
 
-1.68.0
+1.86.0
