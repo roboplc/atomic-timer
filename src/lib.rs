@@ -45,6 +45,25 @@ impl AtomicTimer {
             monotonic_ns,
         )
     }
+    /// Create a new atomic timer expired
+    ///
+    /// # Panics
+    ///
+    /// Panics if the duration is too large (in nanos greater than `i64::MAX`)
+    pub fn new_expired(duration: Duration) -> Self {
+        Self::construct(
+            duration
+                .as_nanos()
+                .try_into()
+                .expect("Duration is too large"),
+            duration
+                .as_nanos()
+                .try_into()
+                .expect("Duration is too large"),
+            true,
+            monotonic_ns,
+        )
+    }
     /// Get the duration of the timer
     ///
     /// # Panics
