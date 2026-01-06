@@ -15,6 +15,17 @@ pub struct AtomicTimer {
     monotonic_fn: fn() -> i64,
 }
 
+impl std::fmt::Debug for AtomicTimer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AtomicTimer")
+            .field("duration", &self.duration())
+            .field("elapsed", &self.elapsed())
+            .field("remaining", &self.remaining())
+            .field("expired", &self.expired())
+            .finish()
+    }
+}
+
 fn monotonic_ns() -> i64 {
     i64::try_from(Monotonic::now().as_nanos()).expect("Monotonic time is too large")
 }
