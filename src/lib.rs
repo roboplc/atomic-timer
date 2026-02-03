@@ -96,6 +96,11 @@ impl AtomicTimer {
             })
             .is_ok()
     }
+    /// Reset the timer to a new duration
+    pub fn reset_to_duration(&self, duration: Duration) {
+        self.set_duration(duration);
+        self.reset();
+    }
     /// Change the duration of the timer
     ///
     /// # Panics
